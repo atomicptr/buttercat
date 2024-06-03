@@ -22,6 +22,7 @@ func main() {
 
 func runCli() error {
 	timeoutPtr := flag.IntP("timeout", "t", 1, "timeout before restarting after program crashed (min: 1)")
+	maxRestartsPtr := flag.IntP("max-restarts", "", 0, "max number of restarts")
 	flag.Parse()
 
 	if timeoutPtr == nil {
@@ -38,12 +39,19 @@ func runCli() error {
 		timeout = 1
 	}
 
+	maxRestarts := *maxRestartsPtr
+	if maxRestarts < 0 {
+		maxRestarts = 0
+	}
+
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
 	commandParts := os.Args[index+1:]
 	cmd := commandParts[0]
 	args := commandParts[1:]
+
+	counter := 0
 
 	for {
 		res := make(chan error, 1)
@@ -69,6 +77,13 @@ func runCli() error {
 
 		case sig := <-sigChan:
 			log.Printf("Received signal: %v. Exiting...", sig)
+			return nil
+		}
+
+		counter += 1
+
+		if maxRestarts > 0 && counter >= maxRestarts {
+			log.Printf("Maximum number of restarts reached. Exiting...")
 			return nil
 		}
 	}
