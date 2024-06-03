@@ -4,8 +4,10 @@ Keep a program running forever
 
 ## Usage
 
+Run buttercat, followed by -- (this is required), followed by your program and whatever parameters you want!
+
 ```bash
-$ buttertoast -- program_name --param 1337
+$ buttercat -- program_name --param 1337
 ````
 
 ## Naming

@@ -1,4 +1,4 @@
-package cli
+package main
 
 import (
 	"errors"
@@ -13,17 +13,29 @@ import (
 	flag "github.com/spf13/pflag"
 )
 
-func Run() error {
-	timeout := flag.IntP("timeout", "t", 1, "timeout before restarting after program crashed")
+func main() {
+	err := runCli()
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
+func runCli() error {
+	timeoutPtr := flag.IntP("timeout", "t", 1, "timeout before restarting after program crashed (min: 1)")
 	flag.Parse()
 
-	if timeout == nil {
+	if timeoutPtr == nil {
 		return nil
 	}
 
 	index, err := findCommandIndex(os.Args[1:])
 	if err != nil {
 		return err
+	}
+
+	timeout := *timeoutPtr
+	if timeout < 1 {
+		timeout = 1
 	}
 
 	sigChan := make(chan os.Signal, 1)
@@ -38,6 +50,10 @@ func Run() error {
 		go func() {
 			log.Printf("Starting command: %s", strings.Join(commandParts, " "))
 			command := exec.Command(cmd, args...)
+
+			command.Stdout = os.Stdout
+			command.Stderr = os.Stderr
+
 			res <- command.Run()
 		}()
 
@@ -49,7 +65,8 @@ func Run() error {
 				log.Println("Command completed succesffully. Restarting...")
 			}
 
-			time.Sleep(time.Duration(*timeout) * time.Second)
+			time.Sleep(time.Duration(timeout) * time.Second)
+
 		case sig := <-sigChan:
 			log.Printf("Received signal: %v. Exiting...", sig)
 			return nil
@@ -58,12 +75,18 @@ func Run() error {
 }
 
 func findCommandIndex(args []string) (int, error) {
+	found := false
 	for index, arg := range args {
-		if strings.HasPrefix(arg, "-") {
+		if found {
+			return index, nil
+		}
+
+		if arg != "--" {
 			continue
 		}
-		return index, nil
+
+		found = true
 	}
 
-	return -1, errors.New("could not find command")
+	return -1, errors.New("could not find command. Did you perhaps forget to seperate your command via --?")
 }
